@@ -259,7 +259,7 @@ angular.module('angular-table', [])
             } else {
                 var ngClick = '';
 
-                if(tAttrs.onSelected !== 'undefined') {
+                if(tAttrs.onSelected) {
                     ngClick = ' ng-click="handleClick($event,row, \'' + tAttrs.onSelected + '\')" '
                 }
 
