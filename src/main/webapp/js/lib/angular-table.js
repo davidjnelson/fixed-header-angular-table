@@ -58,10 +58,10 @@ angular.module('angular-table', [])
                     // must be idempotent and as such shouldn't rely on it being any specific number.
                     scope.$watch('ResizeWidthEvent', function() {
                         // pull the computed width of the scrolling container out of the dom
-                        var scrollingContainerComputedWidth = JqLiteExtension.getComputedWidthAsFloat(iElement.next()[0]);
+                        var scrollBarWidth = JqLiteExtension.getComputedWidthAsFloat(iElement[0]) - JqLiteExtension.getComputedWidthAsFloat(iElement.next()[0]);
 
-                        iElement.css('width', scrollingContainerComputedWidth + 'px');
-                        Instrumentation.log('headerRow', 'header width set', scrollingContainerComputedWidth + 'px');
+                        iElement.css('paddingRight', scrollBarWidth + 'px');
+                        Instrumentation.log('headerRow', 'header paddingRight set', scrollBarWidth + 'px');
                     }, true);
                 };
             }
