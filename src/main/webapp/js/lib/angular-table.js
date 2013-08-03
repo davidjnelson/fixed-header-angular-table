@@ -64,47 +64,31 @@ angular.module('angular-table', [])
             }
         };
     }])
-    .directive('row', ['ManualCompiler', 'ResizeHeightEvent', '$window', 'Debounce', 'TemplateStaticState', 'RowState',
+    .directive('row', ['ManualCompiler', 'ResizeHeightEvent', '$window', 'Debounce', 'TemplateStaticState',
         'ScrollingContainerHeightState', 'JqLiteExtension', 'Instrumentation', 'ResizeWidthEvent', '$compile',
-        function(ManualCompiler, ResizeHeightEvent, $window, Debounce, TemplateStaticState, RowState, ScrollingContainerHeightState,
+        function(ManualCompiler, ResizeHeightEvent, $window, Debounce, TemplateStaticState, ScrollingContainerHeightState,
             JqLiteExtension, Instrumentation, ResizeWidthEvent, $compile) {
         return {
             // only support elements for now to simplify the manual transclusion and replace logic.
             restrict: 'E',
             controller: ['$scope', function($scope) {
-                $scope.handleClick = function(row, parentScopeClickHandler, selectedRowBackgroundColor) {
-                    var clickHandlerFunctionName = parentScopeClickHandler.replace('(row)', '');
-
-                    if(selectedRowBackgroundColor !== 'undefined') {
-                        RowState.previouslySelectedRow.rowSelected = false;
-
-                        row.rowSelected = true;
-
-                        RowState.previouslySelectedRow = row;
+            	var prevSelected; 
+                $scope.handleClick = function(event, row, clickHandler) {
+                    var $row = angular.element(event.srcElement).parent('.angularTableRow');
+                    if (prevSelected){
+                    	prevSelected.removeClass('selected');
+                    	prevSelected = $row;
                     }
-
-                    if(clickHandlerFunctionName !== 'undefined') {
-                        $scope.$parent[clickHandlerFunctionName](row);
-                    }
-                };
-
-                $scope.getRowColor = function(index, row) {
-                    if(row.rowSelected) {
-                        return TemplateStaticState.selectedRowColor;
-                    } else {
-                        if(index % 2 === 0) {
-                            return TemplateStaticState.evenRowColor;
-                        } else {
-                            return TemplateStaticState.oddRowColor;
-                        }
+                    $row.addClass('selected');
+                    if(clickHandler) {
+                        clickHandler = clickHandler.replace('(row)', '');
+                        $scope[clickHandler](row);
                     }
                 };
             }],
             // manually transclude and replace the template to work around not being able to have a template with td or tr as a root element
             // see bug: https://github.com/angular/angular.js/issues/1459
             compile: function (tElement, tAttrs) {
-                RowState.rowSelectedBackgroundColor = tAttrs.selectedColor;
-
                 ManualCompiler.compileRow(tElement, tAttrs, false);
 
                 // return a linking function
@@ -273,26 +257,15 @@ angular.module('angular-table', [])
                 rowTemplate = rowTemplate.replace(/sort-arrow-descending/g, 'div');
                 rowTemplate = rowTemplate.replace(/sort-arrow-ascending/g, 'div');
             } else {
-                var selectedBackgroundColor = '';
                 var ngClick = '';
 
-                TemplateStaticState.selectedRowColor = tAttrs.selectedColor;
-                TemplateStaticState.evenRowColor = tAttrs.evenColor;
-                TemplateStaticState.oddRowColor = tAttrs.oddColor;
-
-                if(typeof(tAttrs.selectedColor) !== 'undefined' || typeof(tAttrs.evenColor) !== 'undefined' || typeof(tAttrs.oddColor) !== 'undefined' ) {
-                    selectedBackgroundColor = 'ng-style="{ backgroundColor: getRowColor($index, row) }"';
-                }
-
-                if(typeof(tAttrs.onSelected) !== 'undefined') {
-                    ngClick = ' ng-click="handleClick(row, \'' +
-                        tAttrs.onSelected + '\', \'' + tAttrs.selectedColor + '\')" '
+                if(tAttrs.onSelected !== 'undefined') {
+                    ngClick = ' ng-click="handleClick($event,row, \'' + tAttrs.onSelected + '\')" '
                 }
 
                 // add the ng-repeat and row selection click handler to each row
                 rowTemplate = rowTemplate.replace('<tr',
-                    '<tr ng-repeat="row in model | orderBy:sortState.sortExpression:sortState.sortDirectionToColumnMap[sortState.sortExpression] | filter:filterQueryModel" ' +
-                        selectedBackgroundColor + ngClick);
+                    '<tr ng-repeat="row in model | orderBy:sortState.sortExpression:sortState.sortDirectionToColumnMap[sortState.sortExpression] | filter:filterQueryModel"' + ngClick);
             }
 
             // wrap our rows in a table, and a container div.  the container div will manage the scrolling.
@@ -335,22 +308,6 @@ angular.module('angular-table', [])
 
     .service('TemplateStaticState', function() {
         var self = this;
-
-        // store selected, even and odd row background colors
-        self.selectedRowColor = '';
-        self.evenRowColor = '';
-        self.oddRowColor = '';
-
-        return self;
-    })
-
-    .service('RowState', function() {
-        var self = this;
-
-        // store a reference to the previously selected row so we can access it without looking it up from the bound model
-        self.previouslySelectedRow = {};
-        self.previouslySelectedRowColor = '';
-
         return self;
     })
 

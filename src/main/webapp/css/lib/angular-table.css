@@ -67,3 +67,16 @@
     display: inline-block;
     vertical-align: middle;
 }
+
+.angularTableRow:nth-child(even) {
+	background-color: #ffffff;
+}
+.angularTableRow:nth-child(odd){
+	background-color: #eeeeee;
+}
+.angularTableRow:hover {
+	background-color:#57aeca;
+}
+.angularTableRow.selected {
+	background-color:#87cefa;
+}
