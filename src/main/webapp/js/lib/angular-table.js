@@ -129,31 +129,6 @@ angular.module('angular-table', [])
                         });
                     }, 50));
 
-                    // set the scrolling container height event on resize
-                    // set the angularTableTableContainer height to angularTableContainer computed height - angularTableHeaderTableContainer computed height
-                    // watches get called n times until the model settles. it's typically one or two, but processing in the functions
-                    // must be idempotent and as such shouldn't rely on it being any specific number.
-                    scope.$watch('ResizeHeightEvent', function() {
-                        // pull the computed height of the header and the outer container out of the dom
-                        var outerContainerComputedHeight = getHeaderComputedHeight();
-                        var headerComputedHeight = getScrollingContainerComputedHeight()
-                        var newScrollingContainerHeight = outerContainerComputedHeight - headerComputedHeight;
-
-                        if(isNaN(headerComputedHeight)) {
-                            Instrumentation.log('row', 'header computed height was NaN');
-                        }
-
-                        if(isNaN(outerContainerComputedHeight)) {
-                            Instrumentation.log('row', 'outer container computed height was NaN');
-                        }
-
-                        iElement.css('height', newScrollingContainerHeight + 'px');
-                        Instrumentation.log('row', 'scrolling container height set',
-                            'outerContainerComputedHeight: ' + outerContainerComputedHeight + '\n' +
-                            'headerComputedHeight: ' + headerComputedHeight + '\n' +
-                            'newScrollingContainerHeight: ' + newScrollingContainerHeight);
-                    }, true);
-
                     // scroll to top when sort applied
                     // watches get called n times until the model settles. it's typically one or two, but processing in the functions
                     // must be idempotent and as such shouldn't rely on it being any specific number.
