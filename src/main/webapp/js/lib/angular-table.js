@@ -77,8 +77,8 @@ angular.module('angular-table', [])
                     var $row = angular.element(event.srcElement).parent('.angularTableRow');
                     if (prevSelected){
                     	prevSelected.removeClass('selected');
-                    	prevSelected = $row;
                     }
+                	prevSelected = $row;
                     $row.addClass('selected');
                     if(clickHandler) {
                         clickHandler = clickHandler.replace('(row)', '');
