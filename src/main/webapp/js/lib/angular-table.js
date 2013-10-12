@@ -31,6 +31,7 @@ angular.module('angular-table', [])
                     };
                     scope.$watch(attrs.ngModel,function(value){scope.model = value});
                     scope.$watch(attrs.filterQueryModel,function(value){scope.filterQueryModel = value});
+                    scope.$watch(attrs.sortColumn,function(value){scope.sortState.setSortExpression(value);});
                 };
             }
         };
@@ -125,7 +126,7 @@ angular.module('angular-table', [])
                         // flip the booleans to trigger the watches
                         ResizeHeightEvent.fireTrigger = !ResizeHeightEvent.fireTrigger;
                         ResizeWidthEvent.fireTrigger = !ResizeWidthEvent.fireTrigger;
-                    }, true);
+                    });
                 };
             }
         };
