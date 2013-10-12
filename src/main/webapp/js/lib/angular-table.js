@@ -1,13 +1,12 @@
 angular.module('angular-table', [])
-    .directive('angularTable', ['SortState', 'TemplateStaticState',
-        function(SortState, TemplateStaticState) {
+    .directive('angularTable', ['TemplateStaticState',
+        function(TemplateStaticState) {
         return {
             // only support elements for now to simplify the manual transclusion and replace logic.
             restrict: 'E',
             // manually transclude and replace the template to work around not being able to have a template with td or tr as a root element
             // see bug: https://github.com/angular/angular.js/issues/1459
             compile: function (tElement, tAttrs) {
-                SortState.sortExpression = tAttrs.defaultSortColumn;
                 TemplateStaticState.instrumentationEnabled = tAttrs.instrumentationEnabled;
 
                 // find whatever classes were passed into the angular-table, and merge them with the built in classes for the container div
@@ -18,31 +17,30 @@ angular.module('angular-table', [])
                 tElement.replaceWith(rowTemplate);
 
                 // return linking function
-                return function(scope) {
-                    scope.parent = scope.$parent;
+                return function(scope, element, attrs, controller) {
+                    scope.sortState = {
+                		sortExpression : attrs.defaultSortColumn,
+                		sortDirectionToColumnMap : {},
+                		setSortExpression : function(columnName) {
+                			var s = scope.sortState;
+                        	s.sortExpression = columnName;
+
+                            // track sort directions by sorted column for a better ux
+                        	s.sortDirectionToColumnMap[s.sortExpression] = !s.sortDirectionToColumnMap[s.sortExpression];
+                        }
+                    };
+                    scope.$watch(attrs.ngModel,function(value){scope.model = value});
+                    scope.$watch(attrs.filterQueryModel,function(value){scope.filterQueryModel = value});
+                    scope.$watch(attrs.sortColumn,function(value){scope.sortState.setSortExpression(value);});
                 };
-            },
-            scope: {
-                model: '=',
-                filterQueryModel: '='
             }
         };
     }])
-    .directive('headerRow', ['ManualCompiler', 'ScrollingContainerHeightState', 'JqLiteExtension', 'SortState', 'ResizeHeightEvent', 'ResizeWidthEvent', 'Instrumentation',
-        function(ManualCompiler, ScrollingContainerHeightState, JqLiteExtension, SortState, ResizeHeightEvent, ResizeWidthEvent, Instrumentation) {
+    .directive('headerRow', ['ManualCompiler', 'ScrollingContainerHeightState', 'JqLiteExtension', 'ResizeHeightEvent', 'ResizeWidthEvent', 'Instrumentation',
+        function(ManualCompiler, ScrollingContainerHeightState, JqLiteExtension, ResizeHeightEvent, ResizeWidthEvent, Instrumentation) {
         return {
             // only support elements for now to simplify the manual transclusion and replace logic.
             restrict: 'E',
-            controller: ['$scope', '$parse', function($scope, $parse) {
-                $scope.SortState = SortState;
-
-                $scope.setSortExpression = function(columnName) {
-                    SortState.sortExpression = columnName;
-
-                    // track sort directions by sorted column for a better ux
-                    SortState.sortDirectionToColumnMap[SortState.sortExpression] = !SortState.sortDirectionToColumnMap[SortState.sortExpression];
-                };
-            }],
             // manually transclude and replace the template to work around not being able to have a template with td or tr as a root element
             // see bug: https://github.com/angular/angular.js/issues/1459
             compile: function (tElement, tAttrs) {
@@ -58,64 +56,45 @@ angular.module('angular-table', [])
                     // must be idempotent and as such shouldn't rely on it being any specific number.
                     scope.$watch('ResizeWidthEvent', function() {
                         // pull the computed width of the scrolling container out of the dom
-                        var scrollingContainerComputedWidth = JqLiteExtension.getComputedWidthAsFloat(iElement.next()[0]);
+                        var scrollBarWidth = JqLiteExtension.getComputedWidthAsFloat(iElement[0]) - JqLiteExtension.getComputedWidthAsFloat(iElement.next()[0]);
 
-                        iElement.css('width', scrollingContainerComputedWidth + 'px');
-                        Instrumentation.log('headerRow', 'header width set', scrollingContainerComputedWidth + 'px');
+                        iElement.css('paddingRight', scrollBarWidth + 'px');
+                        Instrumentation.log('headerRow', 'header paddingRight set', scrollBarWidth + 'px');
                     }, true);
                 };
             }
         };
     }])
-    .directive('row', ['ManualCompiler', 'ResizeHeightEvent', '$window', 'Debounce', 'TemplateStaticState', 'RowState', 'SortState',
+    .directive('row', ['ManualCompiler', 'ResizeHeightEvent', '$window', 'Debounce', 'TemplateStaticState',
         'ScrollingContainerHeightState', 'JqLiteExtension', 'Instrumentation', 'ResizeWidthEvent', '$compile',
-        function(ManualCompiler, ResizeHeightEvent, $window, Debounce, TemplateStaticState, RowState, SortState, ScrollingContainerHeightState,
+        function(ManualCompiler, ResizeHeightEvent, $window, Debounce, TemplateStaticState, ScrollingContainerHeightState,
             JqLiteExtension, Instrumentation, ResizeWidthEvent, $compile) {
         return {
             // only support elements for now to simplify the manual transclusion and replace logic.
             restrict: 'E',
             controller: ['$scope', function($scope) {
-                $scope.sortExpression = SortState.sortExpression;
-
-                $scope.handleClick = function(row, parentScopeClickHandler, selectedRowBackgroundColor) {
-                    var clickHandlerFunctionName = parentScopeClickHandler.replace('(row)', '');
-
-                    if(selectedRowBackgroundColor !== 'undefined') {
-                        RowState.previouslySelectedRow.rowSelected = false;
-
-                        row.rowSelected = true;
-
-                        RowState.previouslySelectedRow = row;
+            	var prevSelected; 
+                $scope.handleClick = function(event, row, clickHandler) {
+                    var $row = angular.element(event.srcElement).parent('.angularTableRow');
+                    if (prevSelected){
+                    	prevSelected.removeClass('selected');
                     }
-
-                    if(clickHandlerFunctionName !== 'undefined') {
-                        $scope.$parent[clickHandlerFunctionName](row);
-                    }
-                };
-
-                $scope.getRowColor = function(index, row) {
-                    if(row.rowSelected) {
-                        return TemplateStaticState.selectedRowColor;
-                    } else {
-                        if(index % 2 === 0) {
-                            return TemplateStaticState.evenRowColor;
-                        } else {
-                            return TemplateStaticState.oddRowColor;
-                        }
+                	prevSelected = $row;
+                    $row.addClass('selected');
+                    if(clickHandler) {
+                        clickHandler = clickHandler.replace('(row)', '');
+                        $scope[clickHandler](row);
                     }
                 };
             }],
             // manually transclude and replace the template to work around not being able to have a template with td or tr as a root element
             // see bug: https://github.com/angular/angular.js/issues/1459
             compile: function (tElement, tAttrs) {
-                RowState.rowSelectedBackgroundColor = tAttrs.selectedColor;
-
                 ManualCompiler.compileRow(tElement, tAttrs, false);
 
                 // return a linking function
                 return function(scope, iElement) {
                     scope.ScrollingContainerHeightState = ScrollingContainerHeightState;
-                    scope.SortState = SortState;
 
                     var getHeaderComputedHeight = function() {
                         return JqLiteExtension.getComputedHeightAsFloat(iElement.parent()[0]);
@@ -135,35 +114,10 @@ angular.module('angular-table', [])
                         });
                     }, 50));
 
-                    // set the scrolling container height event on resize
-                    // set the angularTableTableContainer height to angularTableContainer computed height - angularTableHeaderTableContainer computed height
-                    // watches get called n times until the model settles. it's typically one or two, but processing in the functions
-                    // must be idempotent and as such shouldn't rely on it being any specific number.
-                    scope.$watch('ResizeHeightEvent', function() {
-                        // pull the computed height of the header and the outer container out of the dom
-                        var outerContainerComputedHeight = getHeaderComputedHeight();
-                        var headerComputedHeight = getScrollingContainerComputedHeight()
-                        var newScrollingContainerHeight = outerContainerComputedHeight - headerComputedHeight;
-
-                        if(isNaN(headerComputedHeight)) {
-                            Instrumentation.log('row', 'header computed height was NaN');
-                        }
-
-                        if(isNaN(outerContainerComputedHeight)) {
-                            Instrumentation.log('row', 'outer container computed height was NaN');
-                        }
-
-                        iElement.css('height', newScrollingContainerHeight + 'px');
-                        Instrumentation.log('row', 'scrolling container height set',
-                            'outerContainerComputedHeight: ' + outerContainerComputedHeight + '\n' +
-                            'headerComputedHeight: ' + headerComputedHeight + '\n' +
-                            'newScrollingContainerHeight: ' + newScrollingContainerHeight);
-                    }, true);
-
                     // scroll to top when sort applied
                     // watches get called n times until the model settles. it's typically one or two, but processing in the functions
                     // must be idempotent and as such shouldn't rely on it being any specific number.
-                    scope.$watch('SortState', function() {
+                    scope.$watch('sortState', function() {
                         iElement[0].scrollTop = 0;
                     }, true);
 
@@ -172,7 +126,7 @@ angular.module('angular-table', [])
                         // flip the booleans to trigger the watches
                         ResizeHeightEvent.fireTrigger = !ResizeHeightEvent.fireTrigger;
                         ResizeWidthEvent.fireTrigger = !ResizeWidthEvent.fireTrigger;
-                    }, true);
+                    });
                 };
             }
         };
@@ -261,18 +215,24 @@ angular.module('angular-table', [])
                 angular.forEach(tElement.children(), function(childColumn, index) {
                     if(angular.element(childColumn).attr('sortable') === 'true') {
                         // add the ascending sort icon
-                        angular.element(childColumn).find('sort-arrow-descending').attr('ng-show',
-                            'SortState.sortExpression == \'' + angular.element(childColumn).attr('sort-field-name') +
-                            '\' && !SortState.sortDirectionToColumnMap[\'' + angular.element(childColumn).attr('sort-field-name') + '\']').addClass('angularTableDefaultSortArrowAscending');
+                    	var $sortdesc = angular.element(childColumn).find('sort-arrow-descending');
+                    	if ($sortdesc.length == 0)
+                    		$sortdesc = $('<div>').appendTo(angular.element(childColumn));
+                		$sortdesc.attr('ng-show',
+                            'sortState.sortExpression == \'' + angular.element(childColumn).attr('sort-field-name') +
+                            '\' && !sortState.sortDirectionToColumnMap[\'' + angular.element(childColumn).attr('sort-field-name') + '\']').addClass('angularTableDefaultSortArrowAscending');
 
                         // add the descending sort icon
-                        angular.element(childColumn).find('sort-arrow-ascending').attr('ng-show',
-                            'SortState.sortExpression == \'' + angular.element(childColumn).attr('sort-field-name') +
-                            '\' && SortState.sortDirectionToColumnMap[\'' + angular.element(childColumn).attr('sort-field-name') + '\']').addClass('angularTableDefaultSortArrowDescending');
+                    	var $sortasc = angular.element(childColumn).find('sort-arrow-ascending');
+                    	if ($sortasc.length == 0)
+                    		$sortasc = $('<div>').appendTo(angular.element(childColumn));
+                		$sortasc.attr('ng-show',
+                            'sortState.sortExpression == \'' + angular.element(childColumn).attr('sort-field-name') +
+                            '\' && sortState.sortDirectionToColumnMap[\'' + angular.element(childColumn).attr('sort-field-name') + '\']').addClass('angularTableDefaultSortArrowDescending');
 
                         // add the sort click handler
-                        angular.element(childColumn).attr('ng-click', 'setSortExpression(\'' +
-                            angular.element(childColumn).attr('sort-field-name') + '\')');
+                        angular.element(childColumn).attr('ng-click', 'sortState.setSortExpression(\'' +
+                        angular.element(childColumn).attr('sort-field-name') + '\')');
 
                         // remove the sort field name attribute from the dsl
                         angular.element(childColumn).removeAttr('sort-field-name');
@@ -298,26 +258,15 @@ angular.module('angular-table', [])
                 rowTemplate = rowTemplate.replace(/sort-arrow-descending/g, 'div');
                 rowTemplate = rowTemplate.replace(/sort-arrow-ascending/g, 'div');
             } else {
-                var selectedBackgroundColor = '';
                 var ngClick = '';
 
-                TemplateStaticState.selectedRowColor = tAttrs.selectedColor;
-                TemplateStaticState.evenRowColor = tAttrs.evenColor;
-                TemplateStaticState.oddRowColor = tAttrs.oddColor;
-
-                if(typeof(tAttrs.selectedColor) !== 'undefined' || typeof(tAttrs.evenColor) !== 'undefined' || typeof(tAttrs.oddColor) !== 'undefined' ) {
-                    selectedBackgroundColor = 'ng-style="{ backgroundColor: getRowColor($index, row) }"';
-                }
-
-                if(typeof(tAttrs.onSelected) !== 'undefined') {
-                    ngClick = ' ng-click="handleClick(row, \'' +
-                        tAttrs.onSelected + '\', \'' + tAttrs.selectedColor + '\')" '
+                if(tAttrs.onSelected) {
+                    ngClick = ' ng-click="handleClick($event,row, \'' + tAttrs.onSelected + '\')" '
                 }
 
                 // add the ng-repeat and row selection click handler to each row
                 rowTemplate = rowTemplate.replace('<tr',
-                    '<tr ng-repeat="row in model | orderBy:SortState.sortExpression:SortState.sortDirectionToColumnMap[SortState.sortExpression] | filter:filterQueryModel" ' +
-                        selectedBackgroundColor + ngClick);
+                    '<tr ng-repeat="row in model | orderBy:sortState.sortExpression:sortState.sortDirectionToColumnMap[sortState.sortExpression] | filter:filterQueryModel"' + ngClick);
             }
 
             // wrap our rows in a table, and a container div.  the container div will manage the scrolling.
@@ -360,34 +309,6 @@ angular.module('angular-table', [])
 
     .service('TemplateStaticState', function() {
         var self = this;
-
-        // store selected, even and odd row background colors
-        self.selectedRowColor = '';
-        self.evenRowColor = '';
-        self.oddRowColor = '';
-
-        return self;
-    })
-
-    .service('RowState', function() {
-        var self = this;
-
-        // store a reference to the previously selected row so we can access it without looking it up from the bound model
-        self.previouslySelectedRow = {};
-        self.previouslySelectedRowColor = '';
-
-        return self;
-    })
-
-    .service('SortState', function() {
-        var self = this;
-
-        // store the sort expression
-        self.sortExpression = '';
-
-        // store the columns sort direction mapping
-        self.sortDirectionToColumnMap = {};
-
         return self;
     })
 
