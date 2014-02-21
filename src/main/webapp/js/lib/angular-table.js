@@ -170,7 +170,7 @@ angular.module('angular-table', [])
                     }, true);
 
                     // check for scrollbars and adjust the header table width, and scrolling table height as needed when the number of bound rows changes
-                    scope.$watch('model', function(newValue, oldValue) {
+                    scope.$watch(TemplateStaticState.modelName, function(newValue, oldValue) {
                         // flip the booleans to trigger the watches
                         ResizeHeightEvent.fireTrigger = !ResizeHeightEvent.fireTrigger;
                         ResizeWidthEvent.fireTrigger = !ResizeWidthEvent.fireTrigger;
