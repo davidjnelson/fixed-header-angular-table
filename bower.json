@@ -1,6 +1,7 @@
 {
   "name": "angularTable",
   "version": "1.1.0",
+  "main": ["src/main/webapp/css/lib/angular-table.css","src/main/webapp/js/lib/angular-table.css"],
   "dependencies": {
     "angular": "~1.0.7"
   },
